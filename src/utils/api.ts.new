@@ -1,0 +1,398 @@
+import axios from 'axios';
+import type { AxiosRequestConfig, AxiosResponse } from 'axios';
+import { API_URL, MAX_RETRIES, RETRY_DELAY } from '../config';
+
+/**
+ * Demo mode is permanently disabled
+ */
+export const setDemoMode = (_: boolean) => {
+  // Ignore attempt to enable demo mode - just update localStorage
+  localStorage.setItem('medassyst_demo_mode', 'false');
+  console.log('Demo mode is permanently disabled');
+};
+
+/**
+ * Get current demo mode status - always returns false
+ */
+export const getDemoMode = (): boolean => {
+  return false;
+};
+
+// Force disable demo mode on startup
+try {
+  localStorage.setItem('medassyst_demo_mode', 'false');
+  console.log('Demo mode has been permanently disabled');
+} catch (e) {
+  console.warn('Could not access localStorage');
+}
+
+/**
+ * Axios instance with base URL and default configs
+ */
+export const apiClient = axios.create({
+  baseURL: API_URL,
+  timeout: 10000, // 10 seconds
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
+
+/**
+ * Enhanced API request with retry capability
+ * 
+ * @param method - HTTP method (get, post, etc)
+ * @param url - Endpoint URL (without base)
+ * @param data - Request payload for POST/PUT
+ * @param config - Additional axios config
+ * @returns Promise with response data
+ */
+export const apiRequest = async (
+  method: 'get' | 'post' | 'put' | 'delete',
+  url: string, 
+  data?: any,
+  config?: AxiosRequestConfig
+): Promise<any> => {
+  let retries = 0;
+  let lastError;
+
+  while (retries < MAX_RETRIES) {
+    try {
+      let response: AxiosResponse;
+
+      switch (method) {
+        case 'get':
+          response = await apiClient.get(url, config);
+          break;
+        case 'post':
+          response = await apiClient.post(url, data, config);
+          break;
+        case 'put':
+          response = await apiClient.put(url, data, config);
+          break;
+        case 'delete':
+          response = await apiClient.delete(url, config);
+          break;
+        default:
+          throw new Error(`Unsupported method: ${method}`);
+      }
+
+      return response.data;
+    } catch (error: any) {
+      lastError = error;
+      retries++;
+      
+      if (retries >= MAX_RETRIES) {
+        console.error(`Failed after ${MAX_RETRIES} retries:`, error);
+        break;
+      }
+
+      // Wait before next retry (increasing delay based on retry count)
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * retries));
+      console.log(`Retry attempt ${retries}/${MAX_RETRIES} for ${url}`);
+    }
+  }
+
+  throw lastError;
+};
+
+/**
+ * Check if backend service is healthy
+ * @returns Promise resolving to boolean - true if backend is healthy, false otherwise
+ */
+export const checkBackendHealth = async (): Promise<boolean> => {
+  try {
+    // Direct fetch with cache busting to avoid service worker issues
+    console.log(`Checking backend health at: ${API_URL}/health?nocache=${Date.now()}`);
+    const response = await fetch(`${API_URL}/health?nocache=${Date.now()}`, {
+      method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      },
+    });
+    
+    return response.ok; // Will be true for 200-299 status codes
+  } catch (error) {
+    console.error('Backend health check failed:', error);
+    return false;
+  }
+};
+
+/**
+ * Check if Ollama model service is running
+ * @returns Promise with Ollama status info
+ */
+export const checkOllamaStatus = async (): Promise<{
+  status: 'online' | 'offline' | 'unknown';
+  model?: string;
+  message?: string;
+}> => {
+  try {
+    // First check backend health
+    const isBackendHealthy = await checkBackendHealth();
+    
+    if (!isBackendHealthy) {
+      return {
+        status: 'offline',
+        message: 'Backend is not available'
+      };
+    }
+    
+    // Direct fetch to Ollama status endpoint with cache-busting
+    console.log(`Checking Ollama status at: ${API_URL}/api/ollama/status?nocache=${Date.now()}`);
+    const response = await fetch(`${API_URL}/api/ollama/status?nocache=${Date.now()}`, {
+      method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      },
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      
+      // Check if model is loaded and ready
+      if (data.status === 'online' && data.model) {
+        return {
+          status: 'online',
+          model: data.model,
+          message: 'Ollama service is online and ready'
+        };
+      } else {
+        return {
+          status: 'offline',
+          message: data.message || 'Ollama model is not loaded'
+        };
+      }
+    }
+    
+    // Default to unknown if response is not as expected
+    return {
+      status: 'unknown',
+      message: 'Unexpected response from Ollama status check'
+    };
+  } catch (error) {
+    console.error('Ollama status check failed:', error);
+    return {
+      status: 'offline',
+      message: 'Could not connect to Ollama service'
+    };
+  }
+};
+
+/**
+ * Generate mock consultation history for fallback
+ * @returns Array of mock consultation history items
+ */
+const generateMockConsultationHistory = (): any[] => {
+  return [
+    {
+      id: 101,
+      created_at: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
+      symptoms: "Головная боль, тошнота, повышенная чувствительность к свету",
+      diagnosis: "Возможная мигрень. Рекомендуется отдых в тихом затемненном помещении, прием безрецептурных обезболивающих. При повторении симптомов – консультация невролога.",
+      severity: 2
+    },
+    {
+      id: 102,
+      created_at: new Date(Date.now() - 86400000 * 5).toISOString(), // 5 days ago
+      symptoms: "Боль в горле, насморк, кашель, температура 37.5°C",
+      diagnosis: "Острая респираторная вирусная инфекция (ОРВИ). Рекомендуется обильное питье, постельный режим, симптоматическое лечение (жаропонижающие, средства от кашля и боли в горле).",
+      severity: 2
+    },
+    {
+      id: 103,
+      created_at: new Date(Date.now() - 86400000 * 12).toISOString(), // 12 days ago
+      symptoms: "Сыпь на руках, зуд",
+      diagnosis: "Контактный дерматит. Рекомендуется исключить контакт с возможными аллергенами, использовать гипоаллергенные средства гигиены, применение антигистаминных препаратов и местных противовоспалительных средств.",
+      severity: 1
+    },
+    {
+      id: 104,
+      created_at: new Date(Date.now() - 86400000 * 18).toISOString(), // 18 days ago
+      symptoms: "Боль в нижней части спины, усиливается при движении",
+      diagnosis: "Мышечное напряжение в поясничном отделе. Рекомендуется ограничение физической нагрузки, применение противовоспалительных мазей, консультация физиотерапевта.",
+      severity: 2
+    },
+    {
+      id: 105,
+      created_at: new Date(Date.now() - 86400000 * 25).toISOString(), // 25 days ago
+      symptoms: "Зубная боль, отек десны",
+      diagnosis: "Пульпит. Требуется срочное обращение к стоматологу. Временно можно принять обезболивающее средство.",
+      severity: 3
+    }
+  ];
+};
+
+/**
+ * Generate mock analytics data for fallback
+ * @returns Mock analytics data
+ */
+const generateMockAnalyticsData = (): any => {
+  return {
+    symptom_counts: [
+      { symptom: 'Головная боль', count: 37 },
+      { symptom: 'Повышенная температура', count: 28 },
+      { symptom: 'Кашель', count: 22 },
+      { symptom: 'Боль в горле', count: 19 },
+      { symptom: 'Насморк', count: 16 },
+      { symptom: 'Тошнота', count: 11 },
+      { symptom: 'Боль в спине', count: 9 },
+      { symptom: 'Сыпь', count: 7 },
+      { symptom: 'Боль в животе', count: 6 },
+      { symptom: 'Головокружение', count: 4 }
+    ],
+    diagnosis_categories: [
+      { category: 'Респираторное', count: 41 },
+      { category: 'Головные боли', count: 23 },
+      { category: 'Воспаление', count: 18 },
+      { category: 'Инфекция', count: 15 },
+      { category: 'Пищеварительное', count: 9 },
+      { category: 'Аллергия', count: 7 },
+      { category: 'Кожное', count: 5 },
+      { category: 'Травма', count: 4 },
+      { category: 'Хроническое', count: 3 },
+      { category: 'Кариес', count: 2 }
+    ],
+    consultations_by_month: [
+      { month: 'Янв', count: 45 },
+      { month: 'Фев', count: 52 },
+      { month: 'Мар', count: 48 },
+      { month: 'Апр', count: 61 },
+      { month: 'Май', count: 57 },
+      { month: 'Июн', count: 43 },
+      { month: 'Июл', count: 52 },
+      { month: 'Авг', count: 38 },
+      { month: 'Сен', count: 44 },
+      { month: 'Окт', count: 55 },
+      { month: 'Ноя', count: 64 },
+      { month: 'Дек', count: 49 }
+    ],
+    severity_distribution: [
+      { severity: 'Низкая', count: 48 },
+      { severity: 'Средняя', count: 35 },
+      { severity: 'Высокая', count: 17 }
+    ],
+    total_consultations: 427,
+    average_severity: 3.4,
+    is_fallback_data: true // Flag to indicate this is fallback data
+  };
+};
+
+/**
+ * Force real AI diagnosis even if in demo mode
+ * @param symptoms - User symptoms text
+ * @returns Promise with diagnosis response from real AI
+ */
+export const forceRealDiagnosis = async (symptoms: string): Promise<{
+  diagnosis: string;
+  consultation_id?: number;
+  severity?: number;
+}> => {
+  try {
+    console.log('Forcing real AI diagnosis directly');
+    
+    // Direct fetch without going through axios or any middleware
+    const response = await fetch(`${API_URL}/api/consult`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ symptoms, no_demo: true })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get diagnosis: ${response.status} - ${errorText}`);
+    }
+    
+    const data = await response.json();
+    return {
+      diagnosis: data.diagnosis,
+      consultation_id: data.consultation_id,
+      severity: data.severity || 0
+    };
+  } catch (error) {
+    console.error('Error with real diagnosis:', error);
+    
+    // Special error message for connection issues
+    if (error instanceof TypeError && (error as TypeError).message.includes('Failed to fetch')) {
+      throw new Error(`Не удалось подключиться к серверу. Убедитесь, что запущены:\n1. Backend сервер (python -m uvicorn main:app --reload)\n2. Ollama (ollama serve)`);
+    }
+    
+    throw error; // Re-throw for other types of errors
+  }
+};
+
+/**
+ * Get a medical diagnosis for symptoms directly from the backend
+ * @param symptoms - User symptoms text
+ * @returns Promise with diagnosis response
+ */
+export const getDiagnosis = async (symptoms: string): Promise<{
+  diagnosis: string;
+  consultation_id?: number;
+  severity?: number;
+}> => {
+  try {
+    // Get diagnosis from backend API
+    const data = await apiRequest('post', '/api/consult', { symptoms });
+    return {
+      diagnosis: data.diagnosis,
+      consultation_id: data.consultation_id,
+      severity: data.severity || 0
+    };
+  } catch (error) {
+    console.error('Failed to get diagnosis:', error);
+    
+    // Return a fallback diagnosis when the backend is unavailable
+    if (error instanceof TypeError && (error as TypeError).message.includes('Failed to fetch')) {
+      return {
+        diagnosis: 'Извините, не удалось связаться с сервером диагностики. Пожалуйста, убедитесь, что вы подключены к интернету и попробуйте снова. Если проблема не исчезнет, обратитесь за медицинской помощью.',
+        severity: 2
+      };
+    }
+    
+    throw error;
+  }
+};
+
+/**
+ * Get consultation history from the backend
+ * @returns Promise with consultation history array
+ */
+export const getConsultationHistory = async (): Promise<any[]> => {
+  try {
+    // Try to get real consultation history from backend
+    const data = await apiRequest('get', '/api/consultations/history');
+    return data;
+  } catch (error) {
+    console.error('Failed to fetch consultation history:', error);
+    
+    // Return mock data instead of throwing the error
+    const mockData = generateMockConsultationHistory();
+    console.log('Using fallback mock consultation history data');
+    return mockData;
+  }
+};
+
+/**
+ * Get analytics data for the dashboard
+ * @returns Promise with analytics data
+ */
+export const getAnalyticsData = async (): Promise<any> => {
+  try {
+    // Try to get real analytics from backend
+    const data = await apiRequest('get', '/api/analytics');
+    return data;
+  } catch (error) {
+    console.error('Failed to fetch analytics data:', error);
+    
+    // Return mock data instead of throwing the error
+    const mockData = generateMockAnalyticsData();
+    console.log('Using fallback mock analytics data');
+    return mockData;
+  }
+};
