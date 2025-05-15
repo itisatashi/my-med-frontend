@@ -113,7 +113,7 @@ const ChatInterface: React.FC = () => {
       
       // Use different endpoints for local vs production
       const endpoint = isLocalhost
-        ? "/api/api.php" // Use Vite's proxy for local development
+        ? "http://localhost:8000/api/proxy" // Direct URL to local FastAPI server
         : "https://my-med-backend.onrender.com/api/proxy"; // Use our backend proxy in production
       
       console.log(`Using endpoint: ${endpoint}`);
