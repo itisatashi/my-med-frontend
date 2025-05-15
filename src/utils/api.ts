@@ -1,6 +1,12 @@
 import axios from 'axios';
 import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { API_URL, MAX_RETRIES, RETRY_DELAY } from '../config';
+
+// Helper function to determine the correct base API URL
+const getBaseUrl = (): string => {
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  return isLocalhost ? 'http://localhost:8000' : 'https://my-med-backend.onrender.com';
+};
 import { mockAnalyticsData } from './mockData';
 
 /**
@@ -53,22 +59,35 @@ export const apiRequest = async (
   data?: any,
   config?: AxiosRequestConfig
 ): Promise<any> => {
+  // Max number of retries for failed requests
+  const maxRetries = MAX_RETRIES;
   let retries = 0;
   let lastError;
 
-  while (retries < MAX_RETRIES) {
+  // Get the appropriate base URL depending on environment
+  const baseUrl = getBaseUrl();
+  console.log(`Using base URL: ${baseUrl} for request to ${url}`);
+
+  while (retries < maxRetries) {
     try {
+      const axiosConfig: AxiosRequestConfig = {
+        method,
+        url: `${baseUrl}${url}`,
+        ...(data && { data }),
+        ...config,
+      };
+
       let response: AxiosResponse;
 
       switch (method) {
         case 'get':
-          response = await apiClient.get(url, config);
+          response = await axios(axiosConfig);
           break;
         case 'post':
-          response = await apiClient.post(url, data, config);
+          response = await axios(axiosConfig);
           break;
         case 'put':
-          response = await apiClient.put(url, data, config);
+          response = await axios(axiosConfig);
           break;
         case 'delete':
           response = await apiClient.delete(url, config);
@@ -276,6 +295,7 @@ export const getConsultationHistory = async (): Promise<any[]> => {
   try {
     // Get real consultation history from backend
     const data = await apiRequest('get', '/api/history');
+    console.log('Received consultation history data:', data);
     return data;
   } catch (error) {
     console.error('Failed to fetch consultation history:', error);
