@@ -108,11 +108,20 @@ const ChatInterface: React.FC = () => {
     });
 
     try {
+      // Check if we're running locally
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      
+      // Use different endpoints for local vs production
+      const endpoint = isLocalhost
+        ? "/api/api.php" // Use Vite's proxy for local development
+        : "https://my-med-backend.onrender.com/api/proxy"; // Use our backend proxy in production
+      
+      console.log(`Using endpoint: ${endpoint}`);
+      
       // Use our backend proxy to avoid CORS issues
       const response = (await Promise.race([
         fetch(
-          // Use the backend proxy endpoint
-          "https://my-med-backend.onrender.com/api/proxy",
+          endpoint,
           {
             method: "POST",
             headers: {
