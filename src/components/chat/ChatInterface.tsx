@@ -108,13 +108,12 @@ const ChatInterface: React.FC = () => {
     });
 
     try {
-      // Try to get a response from the external API with a timeout
+      // Use our backend proxy to avoid CORS issues
       const response = (await Promise.race([
         fetch(
-          import.meta.env.VITE_EXTERNAL_API_URL ||
-            "https://begdulla.uz/APII/api.php",
+          // Use the backend proxy endpoint
+          "https://my-med-backend.onrender.com/api/proxy",
           {
-            // This will be proxied to https://begdulla.uz/APII/api.php
             method: "POST",
             headers: {
               "Content-Type": "application/json",
