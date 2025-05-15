@@ -4,8 +4,17 @@ import { API_URL, MAX_RETRIES, RETRY_DELAY } from '../config';
 
 // Helper function to determine the correct base API URL
 const getBaseUrl = (): string => {
-  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  return isLocalhost ? 'http://localhost:8000' : 'https://my-med-backend.onrender.com';
+  // Force a specific URL based on the current hostname
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    console.log('API: Using local development URL');
+    return 'http://localhost:8000';
+  } else if (window.location.hostname === 'my-med-frontend.vercel.app') {
+    console.log('API: Using production URL (Vercel)');
+    return 'https://my-med-backend.onrender.com';
+  } else {
+    console.log('API: Using fallback production URL');
+    return 'https://my-med-backend.onrender.com';
+  }
 };
 import { mockAnalyticsData } from './mockData';
 

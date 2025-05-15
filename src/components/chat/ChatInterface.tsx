@@ -108,13 +108,19 @@ const ChatInterface: React.FC = () => {
     });
 
     try {
-      // Check if we're running locally
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      // We'll use a hardcoded endpoint based on window.location.hostname
+      let endpoint;
       
-      // Use different endpoints for local vs production
-      const endpoint = isLocalhost
-        ? "http://localhost:8000/api/proxy" // Direct URL to local FastAPI server
-        : "https://my-med-backend.onrender.com/api/proxy"; // Use our backend proxy in production
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Local development - connect directly to local FastAPI server
+        endpoint = "http://localhost:8000/api/proxy";
+      } else if (window.location.hostname === 'my-med-frontend.vercel.app') {
+        // Production deployment on Vercel
+        endpoint = "https://my-med-backend.onrender.com/api/proxy";
+      } else {
+        // Fallback for any other hostname
+        endpoint = "https://my-med-backend.onrender.com/api/proxy";
+      }
       
       console.log(`Using endpoint: ${endpoint}`);
       
