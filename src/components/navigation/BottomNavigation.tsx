@@ -21,12 +21,14 @@ import {
   Person as ProfileIcon, 
   Chat as ChatIcon,
   Add as AddIcon,
+  History as HistoryIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const navItems = [
   { label: 'Главная', value: '/', icon: <HomeIcon /> },
   { label: 'Консультации', value: '/consult', icon: <MedicineIcon /> },
+  { label: 'История консультаций', value: '/history', icon: <HistoryIcon /> },
   { label: 'Аналитика', value: '/analytics', icon: <AnalyticsIcon /> },
   { label: 'Чат', value: '/chat', icon: <ChatIcon /> },
   { label: 'Профиль', value: '/profile', icon: <ProfileIcon /> },

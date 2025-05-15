@@ -275,7 +275,7 @@ export const getDiagnosis = async (symptoms: string): Promise<{
 export const getConsultationHistory = async (): Promise<any[]> => {
   try {
     // Get real consultation history from backend
-    const data = await apiRequest('get', '/api/consultations/history');
+    const data = await apiRequest('get', '/api/history');
     return data;
   } catch (error) {
     console.error('Failed to fetch consultation history:', error);

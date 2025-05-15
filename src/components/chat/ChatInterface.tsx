@@ -46,13 +46,8 @@ interface Message {
   };
 }
 
-// Suggestion sets in both Russian and Uzbek
-const suggestionSets = [
-  // Russian suggestions
-  ["У меня болит голова и тошнота", "Как снизить температуру?", "Нужно ли мне к врачу?"],
-  ["Что делать при зубной боли?", "Безопасны ли обезболивающие?", "Записаться к стоматологу"],
-  ["Упражнения для спины", "Как правильно сидеть?", "Рекомендации по сну"],
-];
+// Suggestion sets in Russian
+
 
 const ChatInterface: React.FC = () => {
   const navigate = useNavigate();
@@ -103,11 +98,7 @@ const ChatInterface: React.FC = () => {
     // Store the user query for potential fallback response
     const userQuery = userMessage.text;
     
-    // Detect if the message is in Uzbek (simple heuristic check)
-    const isUzbekQuery = /[qo'g']/i.test(userQuery) || 
-                         userQuery.includes('siz') || 
-                         userQuery.includes('men') ||
-                         userQuery.includes('bosh');
+    // We're only using Russian language
     
     // Set a timeout to handle API calls that take too long
     const timeoutPromise = new Promise((_, reject) => {
@@ -135,12 +126,8 @@ const ChatInterface: React.FC = () => {
         // Get response text from API
         const responseText = data.response || ('Извините, я не смог получить ответ. Пожалуйста, попробуйте еще раз.');
           
-        // Choose appropriate suggestion set based on detected language
-        const suggestionIndex = isUzbekQuery 
-          ? Math.floor(Math.random() * 3) + 3 // Uzbek suggestions are at index 3-5
-          : Math.floor(Math.random() * 3);    // Russian suggestions are at index 0-2
+        // Choose a random Russian suggestion set
         
-        const suggestions = suggestionSets[suggestionIndex];
         
         // Try to determine if this is a medical symptom and find a specialist
         let doctorRecommendation: Message['doctorRecommendation'] = undefined;
@@ -179,7 +166,6 @@ const ChatInterface: React.FC = () => {
                   ...msg, 
                   text: responseText, 
                   loading: false, 
-                  suggestions,
                   doctorRecommendation 
                 } 
               : msg
@@ -196,26 +182,18 @@ const ChatInterface: React.FC = () => {
       // Show error to user in UI
       const errorMessage = error instanceof Error ? error.message : String(error);
       
-      // Get appropriate suggestion set based on language
-      const suggestionIndex = isUzbekQuery 
-          ? Math.floor(Math.random() * 3) + 3 // Uzbek suggestions are at index 3-5
-          : Math.floor(Math.random() * 3);    // Russian suggestions are at index 0-2
+      // Get a random Russian suggestion set
       
-      const suggestions = suggestionSets[suggestionIndex];
       
       // Create appropriate error message
       let errorText;
       if ((error instanceof TypeError && errorMessage.includes('fetch')) || 
           errorMessage === 'Request Timeout') {
         // Connection issue
-        errorText = isUzbekQuery
-          ? 'Server bilan bog\'lanishda muammo yuzaga keldi. API sekin ishlashi mumkin. Iltimos, keyinroq qaytadan urinib ko\'ring.' 
-          : 'Возникла проблема с подключением к серверу или сервер отвечает медленно. Пожалуйста, попробуйте задать вопрос позже.';  
+        errorText = 'Возникла проблема с подключением к серверу или сервер отвечает медленно. Пожалуйста, попробуйте задать вопрос позже.';  
       } else {
         // Other error
-        errorText = isUzbekQuery
-          ? 'Javob olishda xatolik yuz berdi. Iltimos, keyinroq qaytadan urinib ko\'ring.'
-          : 'Произошла ошибка при получении ответа. Пожалуйста, попробуйте снова позже.';  
+        errorText = 'Произошла ошибка при получении ответа. Пожалуйста, попробуйте снова позже.';  
       }
       
       // Update the message with the error
@@ -226,7 +204,6 @@ const ChatInterface: React.FC = () => {
                 ...msg, 
                 text: errorText,
                 loading: false,
-                suggestions: suggestions
               } 
             : msg
         )
