@@ -8,12 +8,19 @@ import {
   Card,
   CardContent,
   Button,
-  Collapse
+  Collapse,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  IconButton,
+  Snackbar
 } from '@mui/material';
-import { KeyboardArrowDown, KeyboardArrowUp } from '@mui/icons-material';
+import { KeyboardArrowDown, KeyboardArrowUp, Delete, DeleteSweep } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getConsultationHistory } from '../../utils/api';
+import { getConsultationHistory, deleteConsultation, deleteAllConsultations } from '../../utils/api';
 
 interface Consultation {
   id: string;
@@ -32,6 +39,11 @@ const ConsultationHistory: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedItems, setExpandedItems] = useState<{[key: string]: boolean}>({});
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
   
   // Toggle expanded state for a consultation
   const toggleExpanded = (id: string) => {
@@ -39,6 +51,52 @@ const ConsultationHistory: React.FC = () => {
       ...prev,
       [id]: !prev[id]
     }));
+  };
+
+  // Handle single consultation deletion
+  const handleDelete = async () => {
+    if (!deleteTargetId) return;
+    
+    try {
+      await deleteConsultation(deleteTargetId);
+      setHistory(prev => prev.filter(c => c.id !== deleteTargetId));
+      setSnackbarMessage('Консультация успешно удалена');
+      setSnackbarOpen(true);
+    } catch (error) {
+      console.error('Failed to delete consultation:', error);
+      setSnackbarMessage('Не удалось удалить консультацию');
+      setSnackbarOpen(true);
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setDeleteTargetId(null);
+    }
+  };
+
+  // Handle deletion of all consultation history
+  const handleDeleteAll = async () => {
+    try {
+      await deleteAllConsultations();
+      setHistory([]);
+      setSnackbarMessage('История консультаций очищена');
+      setSnackbarOpen(true);
+    } catch (error) {
+      console.error('Failed to delete all consultations:', error);
+      setSnackbarMessage('Не удалось очистить историю консультаций');
+      setSnackbarOpen(true);
+    } finally {
+      setIsDeleteAllDialogOpen(false);
+    }
+  };
+
+  // Open delete confirmation dialog
+  const openDeleteDialog = (id: string) => {
+    setDeleteTargetId(id);
+    setIsDeleteDialogOpen(true);
+  };
+
+  // Open delete all confirmation dialog
+  const openDeleteAllDialog = () => {
+    setIsDeleteAllDialogOpen(true);
   };
 
   useEffect(() => {
@@ -96,9 +154,23 @@ const ConsultationHistory: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h5" gutterBottom>
-        История консультаций
-      </Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h5">
+          История консультаций
+        </Typography>
+        
+        {consultationHistory.length > 0 && (
+          <Button 
+            variant="outlined" 
+            color="error" 
+            startIcon={<DeleteSweep />}
+            onClick={openDeleteAllDialog}
+            size="small"
+          >
+            Очистить историю
+          </Button>
+        )}
+      </Box>
       
       {isLoading ? (
         <Box display="flex" justifyContent="center" my={4}>
@@ -120,7 +192,7 @@ const ConsultationHistory: React.FC = () => {
               <Box key={consultation.id || index} mb={3}>
                 <Card variant="outlined" sx={{ boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                   <CardContent>
-                    {/* Header with date and severity */}
+                    {/* Header with date, severity and actions */}
                     <Box 
                       display="flex" 
                       justifyContent="space-between" 
@@ -130,23 +202,34 @@ const ConsultationHistory: React.FC = () => {
                       <Typography variant="subtitle1" color="text.secondary">
                         {formatDate(consultation.created_at || new Date().toISOString())}
                       </Typography>
-                      <Box 
-                        sx={{ 
-                          bgcolor: severity.bgcolor, 
-                          px: 2, 
-                          py: 0.5, 
-                          borderRadius: 1,
-                        }}
-                      >
-                        <Typography 
-                          variant="subtitle2" 
-                          sx={{
-                            color: severity.color,
-                            fontWeight: 'medium'
+                      <Box display="flex" alignItems="center">
+                        <Box 
+                          sx={{ 
+                            bgcolor: severity.bgcolor, 
+                            px: 2, 
+                            py: 0.5, 
+                            borderRadius: 1,
+                            mr: 1
                           }}
                         >
-                          {severity.label}
-                        </Typography>
+                          <Typography 
+                            variant="subtitle2" 
+                            sx={{
+                              color: severity.color,
+                              fontWeight: 'medium'
+                            }}
+                          >
+                            {severity.label}
+                          </Typography>
+                        </Box>
+                        <IconButton 
+                          size="small" 
+                          color="error" 
+                          onClick={() => openDeleteDialog(consultation.id)}
+                          sx={{ p: 0.5 }}
+                        >
+                          <Delete fontSize="small" />
+                        </IconButton>
                       </Box>
                     </Box>
                     
@@ -204,6 +287,52 @@ const ConsultationHistory: React.FC = () => {
           })}
         </Box>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Удалить консультацию</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Вы уверены, что хотите удалить эту консультацию? Это действие нельзя отменить.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsDeleteDialogOpen(false)}>Отмена</Button>
+          <Button onClick={handleDelete} color="error" autoFocus>
+            Удалить
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete All Confirmation Dialog */}
+      <Dialog
+        open={isDeleteAllDialogOpen}
+        onClose={() => setIsDeleteAllDialogOpen(false)}
+      >
+        <DialogTitle>Очистить историю консультаций</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Вы уверены, что хотите удалить всю историю консультаций? Это действие нельзя отменить.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsDeleteAllDialogOpen(false)}>Отмена</Button>
+          <Button onClick={handleDeleteAll} color="error" autoFocus>
+            Удалить все
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Notification Snackbar */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={4000}
+        onClose={() => setSnackbarOpen(false)}
+        message={snackbarMessage}
+      />
     </Box>
   );
 };

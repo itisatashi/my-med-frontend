@@ -285,6 +285,35 @@ export const getConsultationHistory = async (): Promise<any[]> => {
 };
 
 /**
+ * Delete a specific consultation by ID
+ * @param id - The ID of the consultation to delete
+ * @returns Promise with deletion result
+ */
+export const deleteConsultation = async (id: string): Promise<any> => {
+  try {
+    const data = await apiRequest('delete', `/api/history/${id}`);
+    return data;
+  } catch (error) {
+    console.error(`Failed to delete consultation ${id}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Delete all consultation history records
+ * @returns Promise with deletion result
+ */
+export const deleteAllConsultations = async (): Promise<any> => {
+  try {
+    const data = await apiRequest('delete', '/api/history/all');
+    return data;
+  } catch (error) {
+    console.error('Failed to delete all consultations:', error);
+    throw error;
+  }
+};
+
+/**
  * Get analytics data for the dashboard
  * @returns Promise with analytics data
  */

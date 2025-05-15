@@ -142,7 +142,16 @@ const ChatInterface: React.FC = () => {
         const responseText =
           data.response ||
           "Извините, я не смог получить ответ. Пожалуйста, попробуйте еще раз.";
-
+          
+        // Save consultation ID from backend if available
+        const consultationId = data.consultation_id;
+        const severityLevel = data.severity;
+        
+        if (consultationId) {
+          console.log(`Consultation saved with ID: ${consultationId}, Severity: ${severityLevel}`);
+          // We could show a notification that the consultation was saved
+        }
+        
         // Choose a random Russian suggestion set
 
         // Try to determine if this is a medical symptom and find a specialist
